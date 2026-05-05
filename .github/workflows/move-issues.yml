@@ -1,0 +1,24 @@
+name: Move Issue to In Progress
+on:
+    create:
+
+jobs:
+    move-to-in-progress:
+        if: github.event.ref_type == 'branch'
+        runs-on: ubuntu-latest
+        steps:
+            - name: Extract Issue Number
+              id: extract_issue
+              run:
+                ISSUE_NUMBER=$(echo "${{ github.event.ref }}" | grep -oE '[0-9]+' | head -1)
+                echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
+
+            - name: Move Issue in Project
+              if: steps.extract_issue.outputs.issue_number != ''
+              uses: leonsteinhaeuser/project-beta-automations@v2.2.1
+              with: 
+                gh_token: ${{ secrets.PROJECT_TOKEN }}
+                user: "${{ github.repository_owner }}"
+                project_id: 1
+                resource_node_id: ${{ steps.extract_issue.outputs.issue_number }}
+                status_value: "In Progress"
