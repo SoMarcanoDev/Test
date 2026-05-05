@@ -34,6 +34,6 @@ jobs:
                   with: 
                     gh_token: ${{ secrets.PROJECT_TOKEN }}
                     user: "${{ github.repository_owner }}"
-                    project_id: 1 
+                    project_id: 5 
                     resource_node_id: ${{ steps.get_node_id.outputs.node_id }} # Ahora usa el ID correcto
                     status_value: "In progress"
