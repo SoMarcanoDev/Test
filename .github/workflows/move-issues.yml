@@ -36,4 +36,4 @@ jobs:
                     user: "${{ github.repository_owner }}"
                     project_id: 1 
                     resource_node_id: ${{ steps.get_node_id.outputs.node_id }} # Ahora usa el ID correcto
-                    status_value: "In Progress"
+                    status_value: "In progress"
