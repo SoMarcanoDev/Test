@@ -16,14 +16,15 @@ jobs:
                     ISSUE_NUM=$(echo "${{ github.event.ref }}" | grep -oE '[0-9]+' | head -1)
                     
                     # Consulta el ID global del issue usando la CLI de GitHub
-                    NODE_ID=$(gh api graphql -f query='
+                    # Usamos -F para asegurar que el número se pase como un Integer a GraphQL
+                    NODE_ID=$(gh api graphql -F org="${{ github.repository_owner }}" -F repo="${{ github.event.repository.name }}" -F num=$ISSUE_NUM -f query='
                         query($org: String!, $repo: String!, $num: Int!) {
                         repository(owner: $org, name: $repo) {
                             issue(number: $num) {
                             id
                             }
                         }
-                        }' -f org="${{ github.repository_owner }}" -f repo="${{ github.event.repository.name }}" -D num=$ISSUE_NUM --jq '.data.repository.issue.id')
+                        }' --jq '.data.repository.issue.id')
                     
                     echo "node_id=$NODE_ID" >> $GITHUB_OUTPUT
 
