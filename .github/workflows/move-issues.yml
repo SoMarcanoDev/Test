@@ -9,7 +9,7 @@ jobs:
         steps:
             - name: Extract Issue Number
               id: extract_issue
-              run:
+              run: |
                 ISSUE_NUMBER=$(echo "${{ github.event.ref }}" | grep -oE '[0-9]+' | head -1)
                 echo "issue_number=$ISSUE_NUMBER" >> $GITHUB_OUTPUT
 
