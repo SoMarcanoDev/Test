@@ -12,11 +12,15 @@ jobs:
                   env:
                     GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
                   run: |
-                    # Extrae el número del issue de la rama
-                    ISSUE_NUM=$(echo "${{ github.event.ref }}" | grep -oE '[0-9]+' | head -1)
+                    # TODO adjust to branch naming rules
+                    ISSUE_NUM=$(echo "${{ github.event.ref }}" | grep -oP '^[^/]+/\K[0-9]+(?=-)')
+          
+                    if [ -z "$ISSUE_NUM" ]; then
+                      echo "No matching issue number found in branch name."
+                      exit 0
+                    fi
                     
-                    # Consulta el ID global del issue usando la CLI de GitHub
-                    # Usamos -F para asegurar que el número se pase como un Integer a GraphQL
+                    # Get the issue's global ID (does not work without this)
                     NODE_ID=$(gh api graphql -F org="${{ github.repository_owner }}" -F repo="${{ github.event.repository.name }}" -F num=$ISSUE_NUM -f query='
                         query($org: String!, $repo: String!, $num: Int!) {
                         repository(owner: $org, name: $repo) {
@@ -35,5 +39,5 @@ jobs:
                     gh_token: ${{ secrets.PROJECT_TOKEN }}
                     user: "${{ github.repository_owner }}"
                     project_id: 5 
-                    resource_node_id: ${{ steps.get_node_id.outputs.node_id }} # Ahora usa el ID correcto
+                    resource_node_id: ${{ steps.get_node_id.outputs.node_id }}
                     status_value: "In progress"
