@@ -1,0 +1,74 @@
+name: Link PR to Issue
+on:
+  pull_request:
+    types: [opened]
+
+jobs:
+  link-issue:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Issue and PR Details
+        id: extract_data
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+        run: |
+          # Get the source branch name of the Pull Request
+          BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
+          
+          # Extract the issue number
+          ISSUE_NUM=$(echo "$BRANCH_NAME" | grep -oP '^[^/]+/\K[0-9]+(?=-)' || true)
+          
+          if [ -z "$ISSUE_NUM" ]; then
+            echo "Branch name '$BRANCH_NAME' does not follow the '[type]/[issue-number]-[desc]' structure. Skipping link."
+            exit 0
+          fi
+          
+          echo "Found Issue Number: $ISSUE_NUM"
+
+          # Fetch the Global Node IDs for both the Issue and the PR
+          # We need both IDs to establish a link via GraphQL
+          QUERY='
+            query($org: String!, $repo: String!, $issue_num: Int!, $pr_num: Int!) {
+              repository(owner: $org, name: $repo) {
+                issue(number: $issue_num) { id }
+                pullRequest(number: $pr_num) { id }
+              }
+            }'
+          
+          DATA=$(gh api graphql \
+            -F org="${{ github.repository_owner }}" \
+            -F repo="${{ github.event.repository.name }}" \
+            -F issue_num=$ISSUE_NUM \
+            -F pr_num=${{ github.event.pull_request.number }} \
+            -f query="$QUERY")
+          
+          ISSUE_NODE_ID=$(echo "$DATA" | jq -r '.data.repository.issue.id // empty')
+          PR_NODE_ID=$(echo "$DATA" | jq -r '.data.repository.pullRequest.id // empty')
+          
+          if [ -z "$ISSUE_NODE_ID" ]; then
+            echo "Could not find an open issue matching #$ISSUE_NUM"
+            exit 0
+          fi
+
+          echo "issue_node_id=$ISSUE_NODE_ID" >> $GITHUB_OUTPUT
+          echo "pr_node_id=$PR_NODE_ID" >> $GITHUB_OUTPUT
+
+      - name: Create Development Link
+        if: steps.extract_data.outputs.issue_node_id != '' && steps.extract_data.outputs.pr_node_id != ''
+        env:
+          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
+        run: |
+          # Use GitHub's GraphQL mutation to formally link the PR to the Issue
+          MUTATION='
+            mutation($issueId: ID!, $prId: ID!) {
+              linkRepositoryNode(input: {repositoryNodeId: $issueId, linkNodeId: $prId}) {
+                clientMutationId
+              }
+            }'
+          
+          gh api graphql \
+            -F issueId="${{ steps.extract_data.outputs.issue_node_id }}" \
+            -F prId="${{ steps.extract_data.outputs.pr_node_id }}" \
+            -f query="$MUTATION"
+          
+          echo "Successfully linked Pull Request to Issue!"
