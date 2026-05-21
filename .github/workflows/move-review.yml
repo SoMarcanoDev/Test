@@ -7,68 +7,48 @@ jobs:
   link-issue:
     runs-on: ubuntu-latest
     steps:
-      - name: Extract Issue and PR Details
-        id: extract_data
+      - name: Extract Details and Update PR Body
+        id: update_pr
         env:
           GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
         run: |
-          # Get the source branch name of the Pull Request
+          # 1. Get the source branch name of the Pull Request
           BRANCH_NAME="${{ github.event.pull_request.head.ref }}"
           
-          # Extract the issue number
+          # 2. Extract the issue number using your naming rule (e.g., feature/123-login)
           ISSUE_NUM=$(echo "$BRANCH_NAME" | grep -oP '^[^/]+/\K[0-9]+(?=-)' || true)
           
           if [ -z "$ISSUE_NUM" ]; then
-            echo "Branch name '$BRANCH_NAME' does not follow the '[type]/[issue-number]-[desc]' structure. Skipping link."
+            echo "Branch name '$BRANCH_NAME' does not follow pattern. Skipping link."
             exit 0
           fi
           
           echo "Found Issue Number: $ISSUE_NUM"
 
-          # Fetch the Global Node IDs for both the Issue and the PR
-          # We need both IDs to establish a link via GraphQL
-          QUERY='
-            query($org: String!, $repo: String!, $issue_num: Int!, $pr_num: Int!) {
-              repository(owner: $org, name: $repo) {
-                issue(number: $issue_num) { id }
-                pullRequest(number: $pr_num) { id }
-              }
-            }'
+          # 3. Prepare the new PR body by appending the closing keyword
+          # We use printf and jq to safely escape multi-line text bodies
+          CURRENT_BODY=$(cat << 'EOF'
+          ${{ github.event.pull_request.body }}
+          EOF
+          )
           
-          DATA=$(gh api graphql \
-            -F org="${{ github.repository_owner }}" \
-            -F repo="${{ github.event.repository.name }}" \
-            -F issue_num=$ISSUE_NUM \
-            -F pr_num=${{ github.event.pull_request.number }} \
-            -f query="$QUERY")
-          
-          ISSUE_NODE_ID=$(echo "$DATA" | jq -r '.data.repository.issue.id // empty')
-          PR_NODE_ID=$(echo "$DATA" | jq -r '.data.repository.pullRequest.id // empty')
-          
-          if [ -z "$ISSUE_NODE_ID" ]; then
-            echo "Could not find an open issue matching #$ISSUE_NUM"
-            exit 0
-          fi
+          # Append 'Closes #123' to the bottom of the description
+          UPDATED_BODY=$(printf "%s\n\nCloses #%s" "$CURRENT_BODY" "$ISSUE_NUM")
 
-          echo "issue_node_id=$ISSUE_NODE_ID" >> $GITHUB_OUTPUT
-          echo "pr_node_id=$PR_NODE_ID" >> $GITHUB_OUTPUT
-
-      - name: Create Development Link
-        if: steps.extract_data.outputs.issue_node_id != '' && steps.extract_data.outputs.pr_node_id != ''
-        env:
-          GH_TOKEN: ${{ secrets.PROJECT_TOKEN }}
-        run: |
-          # Use GitHub's GraphQL mutation to formally link the PR to the Issue
+          # 4. Use the GraphQL mutation to update the PR description
+          # This forces GitHub to automatically link the PR and Issue in the UI
           MUTATION='
-            mutation($issueId: ID!, $prId: ID!) {
-              linkRepositoryNode(input: {repositoryNodeId: $issueId, linkNodeId: $prId}) {
-                clientMutationId
+            mutation($prId: ID!, $body: String!) {
+              updatePullRequest(input: {pullRequestId: $prId, body: $body}) {
+                pullRequest {
+                  id
+                }
               }
             }'
           
           gh api graphql \
-            -F issueId="${{ steps.extract_data.outputs.issue_node_id }}" \
-            -F prId="${{ steps.extract_data.outputs.pr_node_id }}" \
+            -F prId="${{ github.event.pull_request.node_id }}" \
+            -F body="$UPDATED_BODY" \
             -f query="$MUTATION"
           
-          echo "Successfully linked Pull Request to Issue!"
+          echo "Successfully appended Closes #$ISSUE_NUM to PR description!"
