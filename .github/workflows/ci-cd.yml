@@ -7,6 +7,11 @@ on:
       - qa
     tags:
       - 'v*.*.*' # se dispara cuando se crea el tag de version
+
+  create:
+    tags:
+      - 'v*.*.*'
+      
   pull_request:
     branches:
       - main
