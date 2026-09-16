@@ -39,7 +39,7 @@ jobs:
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
           echo "La versión actual detectada es: $CURRENT_VERSION"
 
-      - name: Calcular y Actualizar Versiones en JSONs (Nativo)
+      - name: Calcular y Actualizar Versiones, JSONs y Changelog (Nativo)
         id: update_project_files
         uses: actions/github-script@v7
         with:
@@ -85,9 +85,31 @@ jobs:
                 appJson.expo.version = newVersion;
                 fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
                 console.log('✓ app.json actualizado exitosamente.');
-              } else {
-                console.log('⚠️ app.json encontrado pero no contiene la propiedad "expo".');
               }
+            }
+            
+            // 4. Actualizar CHANGELOG.md de manera automática
+            if (fs.existsSync('CHANGELOG.md')) {
+              let changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
+              
+              // Obtener fecha actual en formato YYYY-MM-DD
+              const today = new Date().toISOString().split('T')[0];
+              
+              // Estructurar el nuevo bloque de la versión
+              const newEntry = `## [${newVersion}] - ${today}\n\n**${newTag}** — Nuevas características y correcciones correspondientes al incremento de tipo ${increment}.\n\n---\n\n`;
+              
+              // Buscar la primera coincidencia de un título de versión h2 para inyectarlo justo arriba
+              if (changelog.includes('## [')) {
+                changelog = changelog.replace('## [', `${newEntry}## [`);
+              } else {
+                // Si no encuentra versiones previas por alguna razón, lo añade al final del archivo
+                changelog += `\n\n${newEntry}`;
+              }
+              
+              fs.writeFileSync('CHANGELOG.md', changelog);
+              console.log('✓ CHANGELOG.md actualizado con la nueva entrada.');
+            } else {
+              console.log('⚠️ CHANGELOG.md no encontrado en el directorio raíz. Omitiendo paso.');
             }
 
       - name: Verificar si el Tag ya existe
@@ -99,10 +121,10 @@ jobs:
 
       - name: Confirmar Cambios en los Archivos del Proyecto
         run: |
-          # Si se modificó package.json o app.json, hace commit y push de las modificaciones
+          # Si se modificó package.json, app.json o CHANGELOG.md, hace commit y push
           if [ -n "$(git status --porcelain)" ]; then
-            git add package.json app.json
-            git commit -m "chore(release): bump version to ${{ env.new_version }} [skip ci]"
+            git add package.json app.json CHANGELOG.md
+            git commit -m "chore(release): bump version to ${{ env.new_version }} and update changelog [skip ci]"
             git push origin ${{ github.ref_name }}
           else
             echo "No se detectaron cambios en los archivos de configuración."
@@ -110,7 +132,7 @@ jobs:
 
       - name: Crear y Publicar Git Tag
         run: |
-          # El tag se adjunta automáticamente al nuevo commit que tiene las versiones actualizadas
+          # El tag se asocia directamente al commit automático generado arriba
           git tag -a ${{ env.new_tag }} -m "Release version ${{ env.new_version }}"
           git push origin ${{ env.new_tag }}
 
