@@ -4,6 +4,12 @@ Historial de versiones del proyecto ATI-Dental siguiendo [Semantic Versioning](h
 
 Entradas más recientes arriba.
 
+## [1.1.4] - 2026-09-16,20:10:17.979Z
+
+**v1.1.4** — Cambios en el readme
+
+---
+
 ## [1.1.3] - 2026-09-16,19:44:44.296Z
 
 **v1.1.3** — Dispara Pipeline
