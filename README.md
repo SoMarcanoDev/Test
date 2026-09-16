@@ -1,3 +1,6 @@
 New REadme file
 Should move branch
 wuup
+
+
+LOS CAMBIOS EN EL README PASAN A QA CON LA NUEVA VERSION WUUUUUUU
