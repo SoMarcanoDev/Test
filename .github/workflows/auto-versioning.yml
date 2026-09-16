@@ -1,0 +1,89 @@
+name: Automatization of Versioning and Tags
+
+on: 
+    workflow_dispatch:
+        inputs:
+            increment_type:
+                description: 'Type of increment'
+                required: true
+                default: 'patch'
+                type: choice
+                options:
+                    - patch
+                    - minor
+                    - major
+        
+jobs:
+    bump-version:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: write
+
+        steps:
+            -   name: Checkout code
+                uses: actions/checkout@v4
+                with:
+                    fetch-depth: 0
+                
+            -   name: Git Config
+                run: |
+                    git config --global user.name "github-actions[bot]"
+                    git config --global user.email "41898282+github-actions[bot]@://github.com"
+
+            -   name: Get Last Version (Tag)
+                id: get_current_version
+                run: |
+                    # Obtiene el último tag que cumpla con el formato v*.*.*, si no existe, inicia en v0.0.0
+                    CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+                    # Remueve la 'v' si la incluye para poder procesarla con semver
+                    CURRENT_VERSION=${CURRENT_TAG#v}
+                    echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
+                    echo "La versión actual detectada es: $CURRENT_VERSION"
+
+            -   name: Install SemVer tool
+                run: |
+                    sudo wget -O /usr/local/bin/semver https://githubusercontent.com
+                    sudo chmod +x /usr/local/bin/semver
+
+            -   name: Calculate new version
+                id: calculate_version
+                run: |
+                    INCREMENT=${{ github.event.inputs.increment_type }}
+                    NEW_VERSION=$(semver bump $INCREMENT ${{ env.current_version }})
+                    NEW_TAG="v$NEW_VERSION" # Modifica este prefijo si tu equipo usa otro formato (ej. sin 'v')
+                    
+                    echo "new_version=$NEW_VERSION" >> $GITHUB_ENV
+                    echo "new_tag=$NEW_TAG" >> $GITHUB_ENV
+                    echo "Nueva versión calculada: $NEW_VERSION ($NEW_TAG)"
+            
+            -   name: Check if Tag already exists
+                run: |
+                    if git rev-parse "${{ env.new_tag }}" >/dev/null 2>&1; then
+                        echo "Error: El tag ${{ env.new_tag }} ya existe en el repositorio."
+                        exit 1
+                    fi
+
+            -   name: Update project versioning file
+                run: |
+                    # EJEMPLO para Node.js (package.json). Descomenta si aplica:
+                    # npm version ${{ env.new_version }} --no-git-tag-version
+                    
+                    # Hacer commit de los cambios si se modificó algún archivo
+                    if [ -n "$(git status --porcelain)" ]; then
+                        git add .
+                        git commit -m "chore(release): bump version to ${{ env.new_version }} [skip ci]"
+                        git push origin ${{ github.ref_name }}
+                    fi
+
+            -   name: Create and publish Git Tag
+                run: |
+                    # Crea el tag anotado asociado al commit actual (o al del nuevo commit si hubo cambios)
+                    git tag -a ${{ env.new_tag }} -m "Release version ${{ env.new_version }}"
+                    # Publica el tag en el repositorio remoto
+                    git push origin ${{ env.new_tag }}
+
+            -   name: Prepare outputs for Releases (Releases)
+                id: outputs
+                run: |
+                    echo "tag_name=${{ env.new_tag }}" >> $GITHUB_OUTPUT
+                    echo "version=${{ env.new_version }}" >> $GITHUB_OUTPUT   
