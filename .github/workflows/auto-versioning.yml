@@ -17,7 +17,7 @@ jobs:
   bump-version:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Requerido para empujar ramas y tags
+      contents: write # Requerido para empujar commits y tags
 
     steps:
       - name: Checkout del código
@@ -39,15 +39,16 @@ jobs:
           echo "current_version=$CURRENT_VERSION" >> $GITHUB_ENV
           echo "La versión actual detectada es: $CURRENT_VERSION"
 
-      - name: Calcular nueva versión (Nativo)
-        id: calculate_version
+      - name: Calcular y Actualizar Versiones en JSONs (Nativo)
+        id: update_project_files
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
             const currentVersion = process.env.current_version;
             const increment = "${{ github.event.inputs.increment_type }}";
             
-            // Parsear el formato MAJOR.MINOR.PATCH
+            // 1. Parsear y calcular la nueva versión (MAJOR.MINOR.PATCH)
             let [major, minor, patch] = currentVersion.split('.').map(Number);
             
             if (increment === 'major') {
@@ -62,11 +63,32 @@ jobs:
             }
             
             const newVersion = `${major}.${minor}.${patch}`;
-            const newTag = `v${newVersion}`; // Manteniendo el prefijo 'v'
+            const newTag = `v${newVersion}`;
             
+            // Exportar variables de entorno para los siguientes pasos
             core.exportVariable('new_version', newVersion);
             core.exportVariable('new_tag', newTag);
             console.log(`Nueva versión calculada: ${newVersion} (${newTag})`);
+            
+            // 2. Actualizar package.json
+            if (fs.existsSync('package.json')) {
+              const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+              packageJson.version = newVersion;
+              fs.writeFileSync('package.json', JSON.stringify(packageJson, null, 2) + '\n');
+              console.log('✓ package.json actualizado exitosamente.');
+            }
+            
+            // 3. Actualizar app.json (Expo)
+            if (fs.existsSync('app.json')) {
+              const appJson = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+              if (appJson.expo) {
+                appJson.expo.version = newVersion;
+                fs.writeFileSync('app.json', JSON.stringify(appJson, null, 2) + '\n');
+                console.log('✓ app.json actualizado exitosamente.');
+              } else {
+                console.log('⚠️ app.json encontrado pero no contiene la propiedad "expo".');
+              }
+            }
 
       - name: Verificar si el Tag ya existe
         run: |
@@ -75,21 +97,20 @@ jobs:
             exit 1
           fi
 
-      - name: Actualizar archivo de versión en el proyecto (Opcional)
+      - name: Confirmar Cambios en los Archivos del Proyecto
         run: |
-          # EJEMPLO para Node.js (package.json). Descomenta si aplica:
-          # npm version ${{ env.new_version }} --no-git-tag-version
-          
-          # Si se modificó el archivo, hace commit y push
+          # Si se modificó package.json o app.json, hace commit y push de las modificaciones
           if [ -n "$(git status --porcelain)" ]; then
-            git add VERSION.txt
+            git add package.json app.json
             git commit -m "chore(release): bump version to ${{ env.new_version }} [skip ci]"
             git push origin ${{ github.ref_name }}
+          else
+            echo "No se detectaron cambios en los archivos de configuración."
           fi
 
       - name: Crear y Publicar Git Tag
         run: |
-          # Garantiza que el tag se asocie al último commit local generado
+          # El tag se adjunta automáticamente al nuevo commit que tiene las versiones actualizadas
           git tag -a ${{ env.new_tag }} -m "Release version ${{ env.new_version }}"
           git push origin ${{ env.new_tag }}
 
