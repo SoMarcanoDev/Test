@@ -4,6 +4,12 @@ Historial de versiones del proyecto ATI-Dental siguiendo [Semantic Versioning](h
 
 Entradas más recientes arriba.
 
+## [1.1.2] - 2026-09-16,19:35:24.864Z
+
+**v1.1.2** — test
+
+---
+
 ## [1.1.1] - 2026-09-16,19:22:08.684Z
 
 **v1.1.1** — crear una nueva version triggers pipeline
