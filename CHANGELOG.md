@@ -4,6 +4,12 @@ Historial de versiones del proyecto ATI-Dental siguiendo [Semantic Versioning](h
 
 Entradas más recientes arriba.
 
+## [1.0.0] - 2026-09-16
+
+**v1.0.0** — Aumento de version major
+
+---
+
 ## [0.1.1] - 2026-09-16
 
 **v0.1.1** — Amento de patch
