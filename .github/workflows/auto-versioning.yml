@@ -42,7 +42,7 @@ jobs:
 
             -   name: Install SemVer tool
                 run: |
-                    sudo wget -O /usr/local/bin/semver https://githubusercontent.com
+                    sudo wget -O /usr/local/bin/semver https://raw.githubusercontent.com
                     sudo chmod +x /usr/local/bin/semver
 
             -   name: Calculate new version
