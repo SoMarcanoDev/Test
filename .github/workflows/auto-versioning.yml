@@ -12,6 +12,11 @@ on:
           - patch
           - minor
           - major
+      release_notes:
+        description: 'Descripción breve de los cambios (Opcional - Changelog)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   bump-version:
@@ -47,6 +52,7 @@ jobs:
             const fs = require('fs');
             const currentVersion = process.env.current_version;
             const increment = "${{ github.event.inputs.increment_type }}";
+            let inputNotes = `${{ github.event.inputs.release_notes }}`.trim();
             
             // 1. Parsear y calcular la nueva versión (MAJOR.MINOR.PATCH)
             let [major, minor, patch] = currentVersion.split('.').map(Number);
@@ -88,21 +94,25 @@ jobs:
               }
             }
             
-            // 4. Actualizar CHANGELOG.md de manera automática
+            // 4. Determinar la descripción para el Changelog
+            if (!inputNotes) {
+              inputNotes = `Nuevas características y correcciones correspondientes al incremento de tipo ${increment}.`;
+            }
+            
+            // 5. Actualizar CHANGELOG.md de manera automática
             if (fs.existsSync('CHANGELOG.md')) {
               let changelog = fs.readFileSync('CHANGELOG.md', 'utf8');
               
-              // Obtener fecha actual en formato YYYY-MM-DD
+              // Obtener fecha actual en formato YYYY-MM-DD (2026-09-16)
               const today = new Date().toISOString().split('T')[0];
               
-              // Estructurar el nuevo bloque de la versión
-              const newEntry = `## [${newVersion}] - ${today}\n\n**${newTag}** — Nuevas características y correcciones correspondientes al incremento de tipo ${increment}.\n\n---\n\n`;
+              // Estructurar el nuevo bloque de la versión con el formato exacto solicitado
+              const newEntry = `## [${newVersion}] - ${today}\n\n**${newTag}** — ${inputNotes}\n\n---\n\n`;
               
               // Buscar la primera coincidencia de un título de versión h2 para inyectarlo justo arriba
               if (changelog.includes('## [')) {
                 changelog = changelog.replace('## [', `${newEntry}## [`);
               } else {
-                // Si no encuentra versiones previas por alguna razón, lo añade al final del archivo
                 changelog += `\n\n${newEntry}`;
               }
               
